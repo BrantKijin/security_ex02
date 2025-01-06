@@ -4,6 +4,7 @@ import static org.springframework.security.config.Customizer.*;
 
 import java.time.LocalDate;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,6 +24,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
+import com.secure.notes.filter.AuthTokenFilter;
 import com.secure.notes.filter.CustomLoggingFilter;
 import com.secure.notes.filter.RequestValidationFilter;
 import com.secure.notes.model.AppRole;
@@ -30,6 +32,7 @@ import com.secure.notes.model.Role;
 import com.secure.notes.model.User;
 import com.secure.notes.repositories.RoleRepository;
 import com.secure.notes.repositories.UserRepository;
+import com.secure.notes.security.jwt.AuthEntryPointJwt;
 //56
 
 @Configuration
@@ -38,6 +41,14 @@ import com.secure.notes.repositories.UserRepository;
 	securedEnabled = true,
 	jsr250Enabled = true)
 public class SecurityConfig {
+	@Autowired
+	private AuthEntryPointJwt unauthorizedHandler;
+
+	@Bean
+	public AuthTokenFilter authenticationJwtTokenFilter() {
+		return new AuthTokenFilter();
+	}
+
 	@Bean
 	SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
 		http.csrf(csrf ->
@@ -51,17 +62,19 @@ public class SecurityConfig {
 			.requestMatchers("/api/csrf-token").permitAll()
 			.requestMatchers("/api/auth/public/**").permitAll()
 			.anyRequest().authenticated());
+		http.exceptionHandling(exception
+			-> exception.authenticationEntryPoint(unauthorizedHandler));
+		http.addFilterBefore(authenticationJwtTokenFilter(),
+			UsernamePasswordAuthenticationFilter.class);
 		http.formLogin(withDefaults());
 		http.httpBasic(withDefaults());
 		return http.build();
 	}
 
 	@Bean
-	public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration)
-		throws Exception {
+	public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
 		return authenticationConfiguration.getAuthenticationManager();
 	}
-
 
 	@Bean
 	public PasswordEncoder passwordEncoder() {
